@@ -59,6 +59,11 @@ async function run() {
       res.send(result);
     });
 
+    // get articles
+    app.get("/add-publisher", async (req, res) => {
+      const result = await addPublisherCollection.find().toArray();
+      res.send(result);
+    });
 
 
     await client.db("admin").command({ ping: 1 });
