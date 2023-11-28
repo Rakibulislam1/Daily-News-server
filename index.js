@@ -52,9 +52,14 @@ async function run() {
       res.send(result);
     });
 
+    // add publisher
+    app.post("/add-publisher", async (req, res) => {
+      const item = req.body;
+      const result = await addPublisherCollection.insertOne(item);
+      res.send(result);
+    });
 
 
-    
 
     await client.db("admin").command({ ping: 1 });
     console.log(
