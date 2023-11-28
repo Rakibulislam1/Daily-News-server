@@ -31,6 +31,12 @@ async function run() {
     const usersCollection = client.db("dailyNews").collection("users");
     const dashboardDecline = client.db("dailyNews").collection("decline");
   
+    // add articles
+    app.post("/add-articles", async (req, res) => {
+      const item = req.body;
+      const result = await dailyNewsCollection.insertOne(item);
+      res.send(result);
+    });
 
     
 
