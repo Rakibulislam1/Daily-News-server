@@ -38,7 +38,11 @@ async function run() {
       res.send(result);
     });
 
-    
+    // get articles
+    app.get("/add-articles", async (req, res) => {
+      const result = await dailyNewsCollection.find().toArray();
+      res.send(result);
+    });
 
 
     await client.db("admin").command({ ping: 1 });
