@@ -4,11 +4,22 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 5000;
+const stripe = require("stripe")(process.env.STRIPE_KEY);
+
+const jwt = require("jsonwebtoken");
 
 // middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://dummy-d6041.web.app",
+      "https://dummy-d6041.firebaseapp.com",
+    ],
+    credentials: true,
+  })
+);
 app.use(express.json());
-
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.v6vphhi.mongodb.net/dailyNews?retryWrites=true&w=majority`;
 
@@ -21,16 +32,38 @@ const client = new MongoClient(uri, {
   },
 });
 
+// jwt
+const verifyToken = async (req, res, next) => {
+  // console.log("inside verify token", req.headers);
+
+  if (!req.headers.authorization) {
+    return res.status(401).send({ message: "forbidden access" });
+  }
+  const token = req.headers.authorization.split(" ")[1];
+
+  jwt.verify(token, process.env.JWT_TOKEN, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: "forbidden access" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
     // Send a ping to confirm a successful connection
-    const dailyNewsCollection = client.db("dailyNews").collection("add-articles");
-    const addPublisherCollection = client.db("dailyNews").collection("add-publisher");
+    const dailyNewsCollection = client
+      .db("dailyNews")
+      .collection("add-articles");
+    const addPublisherCollection = client
+      .db("dailyNews")
+      .collection("add-publisher");
     const usersCollection = client.db("dailyNews").collection("users");
     const dashboardDecline = client.db("dailyNews").collection("decline");
-  
+
     // add articles
     app.post("/add-articles", async (req, res) => {
       const item = req.body;
@@ -39,11 +72,10 @@ async function run() {
     });
 
     // get articles
-    app.get("/add-articles", async (req, res) => {
+    app.get("/add-articles", verifyToken, async (req, res) => {
       const result = await dailyNewsCollection.find().toArray();
       res.send(result);
     });
-
 
     app.delete("/add-articles/:id", async (req, res) => {
       const id = req.params.id;
@@ -65,14 +97,13 @@ async function run() {
       res.send(result);
     });
 
-    
     // add user
     app.post("/users", async (req, res) => {
       const item = req.body;
-      const query = {email: item.email}
-      const existingUser = await usersCollection.findOne(query)
+      const query = { email: item.email };
+      const existingUser = await usersCollection.findOne(query);
       if (existingUser) {
-        return res.send({message: 'User Already Exist', insertedId: null})
+        return res.send({ message: "User Already Exist", insertedId: null });
       }
       const result = await usersCollection.insertOne(item);
       res.send(result);
@@ -84,20 +115,20 @@ async function run() {
       res.send(result);
     });
 
-      //make Admin
-      app.patch("/users/role/:id", async (req, res) => {
-        const id = req.params.id;
-        const filter = { _id: new ObjectId(id) };
-        const updateDoc = {
-          $set: {
-            role: "Admin",
-          },
-        };
-        const result = await usersCollection.updateOne(filter, updateDoc);
-        res.send(result);
-      });
+    //make Admin
+    app.patch("/users/role/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          role: "Admin",
+        },
+      };
+      const result = await usersCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
 
-       //make role
+    //make role
     app.get("/users/role/:email", async (req, res) => {
       const email = req.params.email;
 
@@ -111,20 +142,20 @@ async function run() {
       res.send({ admin });
     });
 
-       //make premium
-       app.patch("/add-articles/premium/:id", async (req, res) => {
-        const id = req.params.id;
-        const filter = { _id: new ObjectId(id) };
-        const updateDoc = {
-          $set: {
-            plan: "Premium",
-          },
-        };
-        const result = await dailyNewsCollection.updateOne(filter, updateDoc);
-        res.send(result);
-      });
+    //make premium
+    app.patch("/add-articles/premium/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          plan: "Premium",
+        },
+      };
+      const result = await dailyNewsCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
 
-          //approved
+    //approved
     app.patch("/add-articles/:id", async (req, res) => {
       const id = req.params.id;
       const data = req.body;
@@ -169,16 +200,13 @@ async function run() {
       res.send(result);
     });
 
-
-    
     //my article get
-    app.get('/add-articles/update/:id',async(req,res) =>{
-      const id = req.params.id 
-      const query = {_id :new ObjectId(id)}
-      const result = await dailyNewsCollection.findOne(query)
-      res.send(result)
-    })
-
+    app.get("/add-articles/update/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await dailyNewsCollection.findOne(query);
+      res.send(result);
+    });
 
     //my article update
     app.patch("/add-articles/update/:id", async (req, res) => {
@@ -206,13 +234,12 @@ async function run() {
     });
 
     // get view details
-    app.get('/add-articles/viewDetails/:id',async(req,res) =>{
-      const id = req.params.id 
-      const query = {_id :new ObjectId(id)}
-      const result = await dailyNewsCollection.findOne(query)
-      res.send(result)
-    })
-
+    app.get("/add-articles/viewDetails/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await dailyNewsCollection.findOne(query);
+      res.send(result);
+    });
 
     // all article get
     app.get("/add-articles/approve", async (req, res) => {
@@ -220,7 +247,6 @@ async function run() {
       const result = await dailyNewsCollection.find(query).toArray();
       res.send(result);
     });
-    
 
     // premium article get
     app.get("/premiumArticle", async (req, res) => {
@@ -228,6 +254,55 @@ async function run() {
       const query = { plan: plan };
       const result = await dailyNewsCollection.find(query).toArray();
       console.log(result);
+      res.send(result);
+    });
+
+    // jwt
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.JWT_TOKEN, {
+        expiresIn: "250h",
+      });
+      res.send({ token });
+    });
+
+    //stripe post payment
+    app.post("/create-payment-intent", async (req, res) => {
+      const { price } = req.body;
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: price * 100,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+
+    app.get("/disablePremiumButton/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const result = await usersCollection.findOne(query);
+      res.send(result);
+    });
+
+
+
+    //stripe patch payment
+    app.patch("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const data = req.body;
+      const updateDoc = {
+        $set: {
+          premiumTaken: data.premiumTaken,
+          price: data.amount,
+          transactionId: data.transactionId,
+        },
+      };
+      const result = await usersCollection.updateOne(query, updateDoc);
       res.send(result);
     });
 
